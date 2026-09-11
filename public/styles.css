@@ -134,9 +134,92 @@ body {
   background: var(--blue);
   color: #fff;
   text-decoration: none;
+  border: 0;
+  cursor: pointer;
   border-radius: 0.5rem;
   padding: 0.7rem 1.1rem;
   font-weight: 600;
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+#payment-form {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+#payment-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+#payment-form input {
+  font: inherit;
+  font-weight: 400;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #dbe7f3;
+  border-radius: 0.5rem;
+  color: var(--text);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.result-panel {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #dbe7f3;
+}
+
+.result-panel.is-approved {
+  border-color: #9ad4bb;
+  background: #f3fbf7;
+}
+
+.result-panel.is-declined {
+  border-color: #f0c2bc;
+  background: #fdf6f5;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.chip {
+  border: 1px solid #dbe7f3;
+  background: #fff;
+  color: var(--navy);
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+
+  .summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
 }
 
 .footer {

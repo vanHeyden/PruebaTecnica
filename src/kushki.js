@@ -3,7 +3,7 @@ const { config } = require("./config");
 function buildChargePayload(body) {
   const token = body.kushkiToken || body.token;
   if (!token) {
-    const error = new Error("No se recibió kushkiToken desde Kajita");
+    const error = new Error("No se recibió token desde Kushki.js");
     error.status = 400;
     throw error;
   }
@@ -59,11 +59,36 @@ async function createCardCharge(formBody) {
   });
 
   const data = await response.json().catch(() => ({}));
+  const responseCode = data.details?.responseCode || data.responseCode;
+  const approved =
+    (response.ok || response.status === 201) &&
+    !data.code &&
+    Boolean(data.ticketNumber || data.transactionReference || responseCode === "000");
+
   return {
     httpStatus: response.status,
-    approved: response.ok && !data.code && (data.ticketNumber || data.transactionReference),
+    approved,
     data,
   };
 }
 
-module.exports = { createCardCharge, buildChargePayload };
+function toPublicResult(result, extras = {}) {
+  const data = result.data || {};
+  const approved = Boolean(result.approved);
+  return {
+    approved,
+    status: approved ? "APPROVED" : "DECLINED",
+    step: extras.step || "charge",
+    httpStatus: result.httpStatus,
+    ticketNumber: data.ticketNumber || "",
+    transactionReference: data.transactionReference || "",
+    code: String(data.code || data.processorError || data.details?.responseCode || (approved ? "000" : "")),
+    message:
+      data.message ||
+      data.details?.responseText ||
+      extras.message ||
+      (approved ? "(000) Transacción aprobada" : "Transacción declinada"),
+  };
+}
+
+module.exports = { createCardCharge, buildChargePayload, toPublicResult };

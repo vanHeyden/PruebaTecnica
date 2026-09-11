@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Checkout Kajita | Kushki México UAT</title>
+    <title>Checkout Kushki.js | Kushki México UAT</title>
     <link rel="stylesheet" href="/assets/styles.css" />
-    <script src="https://cdn.kushkipagos.com/kushki-checkout.js"></script>
+    <script src="https://cdn.kushkipagos.com/kushki.min.js"></script>
   </head>
   <body>
     <header class="hero">
-      <h1>Kushki México · Kajita UAT</h1>
-      <p>Pago único con tarjeta en ambiente de pruebas</p>
+      <h1>Kushki México · UAT</h1>
+      <p>Token con Kushki.js y cargo inmediato con el API</p>
     </header>
 
     <main class="wrap">
@@ -24,42 +24,78 @@
           <div class="amount">$1,000.00 MXN</div>
         </div>
 
-        <form action="/checkout" method="post" id="my-form">
-          <input type="hidden" name="cart_id" value="demo-001" />
+        <form id="payment-form" novalidate>
+          <label>
+            Titular
+            <input name="name" autocomplete="cc-name" required placeholder="Juan Perez" />
+          </label>
+          <label>
+            Número de tarjeta
+            <input name="number" inputmode="numeric" autocomplete="cc-number" required maxlength="19" placeholder="5451 9515 7492 5480" />
+          </label>
+          <div class="row">
+            <label>
+              Mes
+              <input name="expiryMonth" inputmode="numeric" required maxlength="2" placeholder="12" />
+            </label>
+            <label>
+              Año
+              <input name="expiryYear" inputmode="numeric" required maxlength="4" placeholder="29" />
+            </label>
+            <label>
+              CVV
+              <input name="cvc" inputmode="numeric" autocomplete="cc-csc" required maxlength="4" placeholder="123" />
+            </label>
+          </div>
+          <button class="btn" id="pay-button" type="submit">Pagar</button>
         </form>
 
+        <section id="live-result" class="result-panel" hidden>
+          <h2 class="result-title" id="result-title">Resultado</h2>
+          <p class="hint" id="result-message"></p>
+          <div class="cards">
+            <table>
+              <tbody>
+                <tr>
+                  <th>Estado</th>
+                  <td id="field-status"></td>
+                </tr>
+                <tr>
+                  <th>Paso</th>
+                  <td id="field-step"></td>
+                </tr>
+                <tr>
+                  <th>Código</th>
+                  <td id="field-code"></td>
+                </tr>
+                <tr>
+                  <th>Ticket</th>
+                  <td id="field-ticket"></td>
+                </tr>
+                <tr>
+                  <th>Referencia</th>
+                  <td id="field-reference"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <p class="hint">
-          El formulario se carga desde el CDN de Kushki para cumplir PCI. Los datos de
-          tarjeta nunca llegan a este servidor: Kajita devuelve un token y el back-end
-          ejecuta el cargo en
+          1) Kushki.js pide el token en el navegador.
+          2) El back-end cobra en
           <code>https://api-uat.kushkipagos.com/card/v1/charges</code>.
+          3) El estado (aprobada o declinada) se muestra aquí mismo.
         </p>
 
         <div class="cards">
-          <strong>Datos de prueba</strong>
-          <table>
-            <thead>
-              <tr>
-                <th>Escenario</th>
-                <th>Tarjeta</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Aprobada (000)</td>
-                <td><code>5451951574925480</code></td>
-              </tr>
-              <tr>
-                <td>Declinada en token</td>
-                <td><code>4574441215190335</code></td>
-              </tr>
-              <tr>
-                <td>Declinada en cobro</td>
-                <td><code>4349003000047015</code></td>
-              </tr>
-            </tbody>
-          </table>
-          <p class="hint">CVV y código postal: cualquiera. Expiración: cualquier fecha futura.</p>
+          <strong>Tarjetas de prueba</strong>
+          <p class="hint">Clic para completar el formulario. CVV y fecha: 123 / 12/29.</p>
+          <div class="chip-row">
+            <button type="button" class="chip" data-number="5451951574925480">Aprobada · 5451951574925480</button>
+            <button type="button" class="chip" data-number="4574441215190335">Declinada en token · 4574441215190335</button>
+            <button type="button" class="chip" data-number="4349003000047015">Declinada en cobro · 4349003000047015</button>
+          </div>
         </div>
       </section>
     </main>
@@ -67,15 +103,6 @@
     <p class="footer">Ambiente UAT · no procesa dinero real</p>
 
     <script src="/config.js"></script>
-    <script>
-      const checkout = window.__KUSHKI_CHECKOUT__;
-      var kushki = new KushkiCheckout({
-        kformId: checkout.kformId,
-        form: "my-form",
-        publicMerchantId: checkout.publicMerchantId,
-        inTestEnvironment: checkout.inTestEnvironment,
-        amount: checkout.amount,
-      });
-    </script>
+    <script src="/assets/checkout.js"></script>
   </body>
 </html>

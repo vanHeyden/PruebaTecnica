@@ -1,7 +1,7 @@
 {
   "name": "prueba-tecnica-kushki",
   "version": "1.0.0",
-  "description": "Integración Kajita + cargo único con tarjeta en ambiente UAT de Kushki México",
+  "description": "Integración Kushki.js + cargo único con tarjeta en ambiente UAT de Kushki México",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
