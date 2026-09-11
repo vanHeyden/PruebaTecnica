@@ -48,7 +48,7 @@ Navegador                    Comercio                         Kushki UAT
 ```
 
 - **Front-end:** HTML estático + script oficial desde `https://cdn.kushkipagos.com/kushki-checkout.js`. No se empaqueta ni se hostea una copia, para cumplir PCI.
-- **Back-end:** Node.js 18+ y Express. Recibe el POST de Kajita, arma el cuerpo del cargo y llama a la API UAT con `Private-Merchant-Id`.
+- **Back-end:** Node.js 22+ y Express. Recibe el POST de Kajita, arma el cuerpo del cargo y llama a la API UAT con `Private-Merchant-Id`.
 - **Secretos:** en local se usa `.env` (ignorado por git). En Railway hay valores UAT por defecto para que el proceso arranque sin Variables; el navegador solo recibe la llave pública vía `/config.js`.
 
 ---
@@ -208,7 +208,7 @@ PruebaTecnica/
 
 ## 7. Cómo ejecutar el formulario en el navegador
 
-Requisitos: [Node.js 18 o superior](https://nodejs.org/).
+Requisitos: [Node.js 22 o superior](https://nodejs.org/).
 
 1. Clona el repositorio y entra a la carpeta:
 
@@ -242,7 +242,7 @@ Verificación rápida del servicio: [http://localhost:3000/health](http://localh
 
 ### Deploy en Railway
 
-Railway no incluye el archivo `.env` del repositorio. Esta app usa valores UAT por defecto (Kajita, comercio y credenciales de prueba) para que el servicio arranque en la web pública. `PORT` lo inyecta Railway y el proceso escucha en `0.0.0.0`.
+Railway no incluye el archivo `.env` del repositorio. Esta app usa valores UAT por defecto (Kajita, comercio y credenciales de prueba) para que el servicio arranque en la web pública. `PORT` lo inyecta Railway y el proceso escucha en `0.0.0.0`. El build usa **Node 22** (`Dockerfile` con `node:22-alpine`) porque Node 18 ya no está disponible en Nixpacks.
 
 Tras el deploy, abre la URL pública del servicio (por ejemplo `https://<proyecto>.up.railway.app`) y usa las tarjetas de prueba. El health check queda en `/health`.
 
