@@ -49,7 +49,7 @@ Navegador                    Comercio                         Kushki UAT
 
 - **Front-end:** HTML estático + script oficial desde `https://cdn.kushkipagos.com/kushki-checkout.js`. No se empaqueta ni se hostea una copia, para cumplir PCI.
 - **Back-end:** Node.js 18+ y Express. Recibe el POST de Kajita, arma el cuerpo del cargo y llama a la API UAT con `Private-Merchant-Id`.
-- **Secretos:** `.env` (ignorado por git). El navegador solo recibe la llave pública a través de `/config.js`.
+- **Secretos:** en local se usa `.env` (ignorado por git). En Railway hay valores UAT por defecto para que el proceso arranque sin Variables; el navegador solo recibe la llave pública vía `/config.js`.
 
 ---
 
@@ -239,6 +239,14 @@ Requisitos: [Node.js 18 o superior](https://nodejs.org/).
 Modo recarga automática durante desarrollo: `npm run dev`.
 
 Verificación rápida del servicio: [http://localhost:3000/health](http://localhost:3000/health).
+
+### Deploy en Railway
+
+Railway no incluye el archivo `.env` del repositorio. Esta app usa valores UAT por defecto (Kajita, comercio y credenciales de prueba) para que el servicio arranque en la web pública. `PORT` lo inyecta Railway y el proceso escucha en `0.0.0.0`.
+
+Tras el deploy, abre la URL pública del servicio (por ejemplo `https://<proyecto>.up.railway.app`) y usa las tarjetas de prueba. El health check queda en `/health`.
+
+Si quieres sobrescribir credenciales sin cambiar código, define las mismas variables de `.env.example` en **Variables** del servicio en Railway.
 
 ---
 
