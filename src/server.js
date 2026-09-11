@@ -6,6 +6,7 @@ const { createCardCharge } = require("./kushki");
 const app = express();
 const publicDir = path.join(__dirname, "..", "public");
 
+app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
@@ -88,6 +89,6 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-app.listen(config.port, () => {
-  console.log(`Checkout Kajita UAT disponible en http://localhost:${config.port}`);
+app.listen(config.port, config.host, () => {
+  console.log(`Checkout Kajita UAT escuchando en http://${config.host}:${config.port}`);
 });
