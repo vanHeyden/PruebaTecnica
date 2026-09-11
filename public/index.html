@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Checkout Kajita | Kushki México UAT</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+    <script src="https://cdn.kushkipagos.com/kushki-checkout.js"></script>
+  </head>
+  <body>
+    <header class="hero">
+      <h1>Kushki México · Kajita UAT</h1>
+      <p>Pago único con tarjeta en ambiente de pruebas</p>
+    </header>
+
+    <main class="wrap">
+      <section class="card">
+        <span class="badge">Digital Core · UAT</span>
+        <div class="summary">
+          <div>
+            <div class="muted" style="color: #5b738a">Orden de demostración</div>
+            <strong>Prueba técnica — pago único</strong>
+          </div>
+          <div class="amount">$1,000.00 MXN</div>
+        </div>
+
+        <form action="/checkout" method="post" id="my-form">
+          <input type="hidden" name="cart_id" value="demo-001" />
+        </form>
+
+        <p class="hint">
+          El formulario se carga desde el CDN de Kushki para cumplir PCI. Los datos de
+          tarjeta nunca llegan a este servidor: Kajita devuelve un token y el back-end
+          ejecuta el cargo en
+          <code>https://api-uat.kushkipagos.com/card/v1/charges</code>.
+        </p>
+
+        <div class="cards">
+          <strong>Datos de prueba</strong>
+          <table>
+            <thead>
+              <tr>
+                <th>Escenario</th>
+                <th>Tarjeta</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Aprobada (000)</td>
+                <td><code>5451951574925480</code></td>
+              </tr>
+              <tr>
+                <td>Declinada en token</td>
+                <td><code>4574441215190335</code></td>
+              </tr>
+              <tr>
+                <td>Declinada en cobro</td>
+                <td><code>4349003000047015</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="hint">CVV y código postal: cualquiera. Expiración: cualquier fecha futura.</p>
+        </div>
+      </section>
+    </main>
+
+    <p class="footer">Ambiente UAT · no procesa dinero real</p>
+
+    <script src="/config.js"></script>
+    <script>
+      const checkout = window.__KUSHKI_CHECKOUT__;
+      var kushki = new KushkiCheckout({
+        kformId: checkout.kformId,
+        form: "my-form",
+        publicMerchantId: checkout.publicMerchantId,
+        inTestEnvironment: checkout.inTestEnvironment,
+        amount: checkout.amount,
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,147 @@
+:root {
+  --navy: #023365;
+  --blue: #1e65ae;
+  --sky: #0977e7;
+  --mint: #00e6b2;
+  --bg: #f4f7fb;
+  --card: #ffffff;
+  --text: #12324f;
+  --muted: #5b738a;
+  --danger: #c0392b;
+  --ok: #0f8a5f;
+  --shadow: 0 0.5rem 1.0625rem rgba(106, 167, 197, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  min-height: 100vh;
+}
+
+.hero {
+  background: linear-gradient(135deg, var(--sky) 0%, var(--navy) 100%);
+  color: #fff;
+  padding: 2.5rem 1.5rem 2rem;
+  text-align: center;
+}
+
+.hero h1 {
+  margin: 0 0 0.5rem;
+  font-weight: 500;
+  font-size: 2rem;
+}
+
+.hero p,
+.muted {
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+}
+
+.wrap {
+  max-width: 720px;
+  margin: -1.5rem auto 3rem;
+  padding: 0 1rem;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+}
+
+.badge {
+  display: inline-block;
+  background: rgba(0, 230, 178, 0.18);
+  color: #067a60;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.3125rem;
+  margin-bottom: 1rem;
+}
+
+.summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #dbe7f3;
+  border-radius: 0.5rem;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.amount {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.cards {
+  margin-top: 1.25rem;
+  font-size: 0.85rem;
+}
+
+.cards table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cards th,
+.cards td {
+  text-align: left;
+  padding: 0.45rem 0.3rem;
+  border-bottom: 1px solid #e8eef5;
+}
+
+.status-ok {
+  color: var(--ok);
+}
+
+.status-no {
+  color: var(--danger);
+}
+
+.result-title {
+  margin-top: 0;
+}
+
+.actions {
+  margin-top: 1.5rem;
+}
+
+.btn {
+  display: inline-block;
+  background: var(--blue);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 0.5rem;
+  padding: 0.7rem 1.1rem;
+  font-weight: 600;
+}
+
+.footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding-bottom: 2rem;
+}
