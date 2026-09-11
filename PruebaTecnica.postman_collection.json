@@ -1,0 +1,237 @@
+{
+  "info": {
+    "_postman_id": "13be4acb-faa4-408e-8655-3d4b3f9878c6",
+    "name": "PruebaTecnica",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "9633925"
+  },
+  "item": [
+    {
+      "name": "1. Request a Card Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {\n    const jsonData = pm.response.json();\n    pm.collectionVariables.set(\"token\", jsonData.token);\n    console.log(\"Token saved:\", jsonData.token);\n}\npm.test(\"Status code is 200\", function () {\n    pm.response.to.have.status(200);\n});\npm.test(\"Response has token\", function () {\n    const jsonData = pm.response.json();\n    pm.expect(jsonData).to.have.property(\"token\");\n});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Public-Merchant-Id",
+            "value": "{{public_merchant_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"card\": {\n        \"name\": \"John Doe\",\n        \"number\": \"5451951574925480\",\n        \"expiryMonth\": \"08\",\n        \"expiryYear\": \"28\",\n        \"cvv\": \"123\"\n    },\n    \"totalAmount\": 1000,\n    \"currency\": \"MXN\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/card/v1/tokens",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "card",
+            "v1",
+            "tokens"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2. Make a Charge",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    const jsonData = pm.response.json();",
+              "    if (jsonData.ticketNumber) {",
+              "        pm.collectionVariables.set(\"ticket_number\", jsonData.ticketNumber);",
+              "        console.log(\"Ticket number saved:\", jsonData.ticketNumber);",
+              "    }",
+              "}",
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Response has ticketNumber\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"ticketNumber\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Private-Merchant-Id",
+            "value": "{{private_merchant_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"token\": \"{{token}}\", \"amount\": {\"subtotalIva\": 0, \"subtotalIva0\": 1000, \"ice\": 0, \"iva\": 0, \"currency\": \"MXN\"}, \"fullResponse\": true}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/card/v1/charges",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "card",
+            "v1",
+            "charges"
+          ]
+        },
+        "description": "Generated from cURL: curl -X POST \"{{base_url}}/card/v1/charges\" -H \"Private-Merchant-Id: {{private_merchant_id}}\" -H \"Content-Type: application/json\" -d '{\"token\": \"{{token}}\", \"amount\": {\"subtotalIva\": 0, \"subtotalIva0\": 1000, \"ice\": 0, \"iva\": 0, \"currency\": \"MXN\"}, \"fullResponse\": true}'"
+      },
+      "response": []
+    },
+    {
+      "name": "3. Void a Transaction",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test(\"Transaction voided successfully\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.exist;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Private-Merchant-Id",
+            "value": "{{private_merchant_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"fullResponse\": true}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/card/v1/charges/{{ticket_number}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "card",
+            "v1",
+            "charges",
+            "{{ticket_number}}"
+          ]
+        },
+        "description": "Generated from cURL: curl -X DELETE \"{{base_url}}/card/v1/charges/{{ticket_number}}\" -H \"Private-Merchant-Id: {{private_merchant_id}}\" -H \"Content-Type: application/json\" -d '{\"fullResponse\": true}'"
+      },
+      "response": []
+    },
+    {
+      "name": "4. Get Transactions List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Private-Merchant-Id",
+            "value": "{{private_merchant_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/analytics/v1/transactions-list",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "analytics",
+            "v1",
+            "transactions-list"
+          ]
+        },
+        "description": "Generated from cURL: curl -X GET \"{{base_url}}/analytics/v1/transactions-list?from=2026-01-01T00:00:00&to=2026-12-31T23:59:59&limit=10&offset=0\" -H \"Private-Merchant-Id: {{private_merchant_id}}\" -H \"Content-Type: application/json\""
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "public_merchant_id",
+      "value": "01325a24f50043189986834c6053c7a9"
+    },
+    {
+      "key": "private_merchant_id",
+      "value": "1410ba3e03ce44a1852265f0334bded0"
+    },
+    {
+      "key": "base_url",
+      "value": "https://api-uat.kushkipagos.com"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "ticket_number",
+      "value": ""
+    },
+    {
+      "key": "kform_id",
+      "value": "NjdqaKBZC",
+      "type": "default"
+    },
+    {
+      "key": "merchant_id",
+      "value": "20000000105136820000",
+      "type": "default"
+    }
+  ]
+}
