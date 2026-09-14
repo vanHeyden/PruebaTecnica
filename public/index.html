@@ -3,13 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Checkout Kajita | Kushki México UAT</title>
+    <title>Checkout | Kushki México UAT</title>
     <link rel="stylesheet" href="/assets/styles.css" />
-    <script src="https://cdn.kushkipagos.com/kushki-checkout.js"></script>
   </head>
   <body>
     <header class="hero">
-      <h1>Kushki México · Kajita UAT</h1>
+      <h1>Kushki México · Checkout UAT</h1>
       <p>Pago único con tarjeta en ambiente de pruebas</p>
     </header>
 
@@ -24,15 +23,41 @@
           <div class="amount">$1,000.00 MXN</div>
         </div>
 
-        <form action="/checkout" method="post" id="my-form">
-          <input type="hidden" name="cart_id" value="demo-001" />
+        <form id="pay-form" class="pay-form" autocomplete="off" novalidate>
+          <label class="field">
+            <span>Nombre en la tarjeta</span>
+            <input id="card-name" type="text" placeholder="Como aparece en la tarjeta" required />
+          </label>
+          <label class="field">
+            <span>Número de tarjeta</span>
+            <input
+              id="card-number"
+              inputmode="numeric"
+              autocomplete="cc-number"
+              maxlength="23"
+              placeholder="1234 5678 9012 3456"
+              required
+            />
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span>Expiración (MM/AA)</span>
+              <input id="card-exp" inputmode="numeric" maxlength="5" placeholder="MM/AA" required />
+            </label>
+            <label class="field">
+              <span>CVV</span>
+              <input id="card-cvv" inputmode="numeric" maxlength="4" placeholder="•••" required />
+            </label>
+          </div>
+          <button type="submit" id="pay-btn" class="btn btn-block">Pagar $1,000.00 MXN</button>
+          <p class="hint pay-status" id="pay-status" hidden></p>
         </form>
 
         <p class="hint">
-          El formulario se carga desde el CDN de Kushki para cumplir PCI. Los datos de
-          tarjeta nunca llegan a este servidor: Kajita devuelve un token y el back-end
-          ejecuta el cargo en
-          <code>https://api-uat.kushkipagos.com/card/v1/charges</code>.
+          Los datos de tarjeta nunca llegan a este servidor: el navegador los tokeniza
+          directamente contra Kushki en
+          <code>/card/v1/tokens</code> (llave pública) y el back-end ejecuta el cargo en
+          <code>/card/v1/charges</code> (llave privada) con el token recibido.
         </p>
 
         <div class="cards tx-result" id="tx-result" hidden>
@@ -94,13 +119,92 @@
 
     <script src="/config.js"></script>
     <script>
-      const checkout = window.__KUSHKI_CHECKOUT__;
-      var kushki = new KushkiCheckout({
-        kformId: checkout.kformId,
-        form: "my-form",
-        publicMerchantId: checkout.publicMerchantId,
-        inTestEnvironment: checkout.inTestEnvironment,
-        amount: checkout.amount,
+      const checkout = window.__KUSHKI_CHECKOUT__ || {};
+      const amount = checkout.amount || {};
+      const totalAmount =
+        (Number(amount.subtotalIva) || 0) +
+        (Number(amount.iva) || 0) +
+        (Number(amount.subtotalIva0) || 0) +
+        (Number(amount.ice) || 0);
+      const tokensUrl =
+        (checkout.apiBaseUrl || "https://api-uat.kushkipagos.com") + "/card/v1/tokens";
+
+      const form = document.getElementById("pay-form");
+      const payBtn = document.getElementById("pay-btn");
+      const payStatus = document.getElementById("pay-status");
+
+      document.getElementById("card-number").addEventListener("input", (event) => {
+        const digits = event.target.value.replace(/\D/g, "").slice(0, 19);
+        event.target.value = digits.replace(/(.{4})/g, "$1 ").trim();
+      });
+      document.getElementById("card-exp").addEventListener("input", (event) => {
+        const digits = event.target.value.replace(/\D/g, "").slice(0, 4);
+        event.target.value = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+      });
+
+      function submitToCheckout(fields) {
+        const hidden = document.createElement("form");
+        hidden.method = "POST";
+        hidden.action = "/checkout";
+        const body = { cart_id: "demo-001", kushkiPaymentMethod: "card", ...fields };
+        for (const [key, value] of Object.entries(body)) {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = key;
+          input.value = value == null ? "" : String(value);
+          hidden.appendChild(input);
+        }
+        document.body.appendChild(hidden);
+        hidden.submit();
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const name = document.getElementById("card-name").value.trim();
+        const number = document.getElementById("card-number").value.replace(/\s+/g, "");
+        const cvv = document.getElementById("card-cvv").value.trim();
+        const exp = document.getElementById("card-exp").value.replace(/\D/g, "");
+        const expiryMonth = exp.slice(0, 2);
+        const expiryYear = exp.slice(2, 4);
+
+        if (!name || number.length < 13 || expiryMonth.length !== 2 || expiryYear.length !== 2 || cvv.length < 3) {
+          payStatus.hidden = false;
+          payStatus.textContent = "Completa todos los campos de la tarjeta.";
+          return;
+        }
+
+        payBtn.disabled = true;
+        payStatus.hidden = false;
+        payStatus.textContent = "Procesando pago…";
+
+        try {
+          const response = await fetch(tokensUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Public-Merchant-Id": checkout.publicMerchantId,
+            },
+            body: JSON.stringify({
+              card: { name, number, expiryMonth, expiryYear, cvv },
+              totalAmount,
+              currency: checkout.currency || "MXN",
+            }),
+          });
+          const data = await response.json().catch(() => ({}));
+
+          if (data && data.token) {
+            submitToCheckout({ kushkiToken: data.token });
+          } else {
+            submitToCheckout({
+              tokenErrorCode: data.code || "",
+              tokenErrorMessage: data.message || "",
+              tokenProcessorError: data.processorError || "",
+            });
+          }
+        } catch (error) {
+          submitToCheckout({ tokenErrorMessage: "No fue posible generar el token con Kushki" });
+        }
       });
     </script>
   </body>

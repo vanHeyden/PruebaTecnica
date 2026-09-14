@@ -25,6 +25,7 @@ app.get("/config.js", (_req, res) => {
     kformId: config.kformId,
     publicMerchantId: config.publicKey,
     merchantId: config.merchantId,
+    apiBaseUrl: config.apiBaseUrl,
     inTestEnvironment: true,
     amount: {
       subtotalIva: config.amount.subtotalIva,
@@ -41,6 +42,22 @@ app.get("/", (_req, res) => {
 
 app.post("/checkout", async (req, res) => {
   try {
+    if (!req.body.kushkiToken && (req.body.tokenErrorCode || req.body.tokenErrorMessage)) {
+      const tokenError = {
+        code: req.body.tokenErrorCode,
+        message: req.body.tokenErrorMessage,
+        processorError: req.body.tokenProcessorError,
+      };
+      const query = new URLSearchParams({
+        status: "declined",
+        reason: describeDeclineReason(tokenError),
+        code: String(tokenError.code || tokenError.processorError || ""),
+        ticket: "",
+        reference: "",
+      });
+      return res.redirect(`/?${query.toString()}`);
+    }
+
     const result = await createCardCharge(req.body);
     const approved = Boolean(result.approved);
     const reason = approved
