@@ -26,7 +26,7 @@
         <form id="pay-form" class="pay-form" autocomplete="off" novalidate>
           <label class="field">
             <span>Nombre en la tarjeta</span>
-            <input id="card-name" type="text" placeholder="Juan Pérez" required />
+            <input id="card-name" type="text" placeholder="Como aparece en la tarjeta" required />
           </label>
           <label class="field">
             <span>Número de tarjeta</span>
@@ -35,18 +35,18 @@
               inputmode="numeric"
               autocomplete="cc-number"
               maxlength="23"
-              placeholder="5451 9515 7492 5480"
+              placeholder="1234 5678 9012 3456"
               required
             />
           </label>
           <div class="field-row">
             <label class="field">
               <span>Expiración (MM/AA)</span>
-              <input id="card-exp" inputmode="numeric" maxlength="5" placeholder="12/29" required />
+              <input id="card-exp" inputmode="numeric" maxlength="5" placeholder="MM/AA" required />
             </label>
             <label class="field">
               <span>CVV</span>
-              <input id="card-cvv" inputmode="numeric" maxlength="4" placeholder="123" required />
+              <input id="card-cvv" inputmode="numeric" maxlength="4" placeholder="•••" required />
             </label>
           </div>
           <button type="submit" id="pay-btn" class="btn btn-block">Pagar $1,000.00 MXN</button>
@@ -167,6 +167,12 @@
         const exp = document.getElementById("card-exp").value.replace(/\D/g, "");
         const expiryMonth = exp.slice(0, 2);
         const expiryYear = exp.slice(2, 4);
+
+        if (!name || number.length < 13 || expiryMonth.length !== 2 || expiryYear.length !== 2 || cvv.length < 3) {
+          payStatus.hidden = false;
+          payStatus.textContent = "Completa todos los campos de la tarjeta.";
+          return;
+        }
 
         payBtn.disabled = true;
         payStatus.hidden = false;
