@@ -44,7 +44,7 @@ Navegador                    Comercio                         Kushki UAT
 2. Completa Kajita  ──────►  CDN kushki-checkout.js  ──────►  Tokeniza PCI
 3. POST /checkout   ◄──────  kushkiToken + método
 4. Back-end         ──────────────────────────────────────►  POST /card/v1/charges
-5. /resultado       ◄──────────────────────────────────────  Aprobado o declinado
+5. Estado en /      ◄──────────────────────────────────────  Aprobado o declinado
 ```
 
 - **Front-end:** HTML estático + script oficial desde `https://cdn.kushkipagos.com/kushki-checkout.js`. No se empaqueta ni se hostea una copia, para cumplir PCI.
@@ -129,7 +129,7 @@ Content-Type: application/json
 
 ### 3.5 Respuesta aprobada
 
-Una autorización exitosa incluye `ticketNumber` y `transactionReference`. La aplicación redirige a `/resultado` con estado `approved` y muestra ticket y referencia.
+Una autorización exitosa incluye `ticketNumber` y `transactionReference`. La aplicación redirige de vuelta a `/` con estado `approved` y muestra **Transacción aprobada** con ticket y referencia en la parte inferior del checkout.
 
 El comercio puede consultar la transacción también en la [consola UAT](https://uat-console.kushkipagos.com/auth).
 
@@ -148,7 +148,7 @@ Kajita valida la tarjeta contra Kushki y **no envía** un token válido al comer
 | Número de tarjeta | `4574441215190335` |
 | Respuesta esperada | `(017) Tarjeta no válida` |
 
-Qué ocurre en esta app: el usuario permanece en Kajita o no llega un `kushkiToken` usable. Si el POST llega vacío, `/checkout` redirige a resultado declinado.
+Qué ocurre en esta app: el usuario permanece en Kajita o no llega un `kushkiToken` usable. Si el POST llega vacío, `/checkout` redirige a `/` mostrando el motivo declinado al pie del checkout.
 
 ### 4.2 Declinada en solicitud de cobro (back-end)
 
@@ -159,7 +159,7 @@ El token se genera, pero `/card/v1/charges` rechaza la operación.
 | Número de tarjeta | `4349003000047015` |
 | Respuesta esperada | `(017) Tarjeta no válida` |
 
-Qué ocurre en esta app: Express recibe el token, llama a UAT, interpreta `code` / `processorError` / `message` y muestra `/resultado` con estado `DECLINED`.
+Qué ocurre en esta app: Express recibe el token, llama a UAT, interpreta `code` / `processorError` / `message`, deriva un motivo legible (por token, por CVV, por fondos, etc.) y lo muestra con estado `DECLINED` al pie del checkout, sin exponer datos sensibles.
 
 ### 4.3 Otros escenarios de prueba (México)
 
@@ -175,7 +175,7 @@ Kushki distingue:
 - `code`: validación propia de Kushki (ejemplo `K004` credencial inválida, `K220` monto distinto al del token).
 - `processorError`: la transacción llegó al procesador/emisor (ejemplo `551` fondos insuficientes, `582` CVV incorrecto).
 
-La pantalla de resultado muestra el código y el mensaje para trazabilidad, sin exponer la llave privada ni el PAN.
+El checkout muestra el motivo y el código para trazabilidad, sin exponer la llave privada ni el PAN.
 
 ---
 
@@ -194,11 +194,11 @@ La pantalla de resultado muestra el código y el mensaje para trazabilidad, sin 
 
 ```
 PruebaTecnica/
-├── public/            # Página de checkout, resultado y estilos
+├── public/            # Checkout con estado de la transacción y estilos
 ├── src/
 │   ├── config.js      # Lectura de variables de entorno
-│   ├── kushki.js      # Cliente HTTP del cargo UAT
-│   └── server.js      # Express: Kajita, cobro y resultado
+│   ├── kushki.js      # Cliente HTTP del cargo UAT + motivo de declinación
+│   └── server.js      # Express: Kajita, cobro y estado en /
 ├── .env.example
 ├── package.json
 └── README.md

@@ -35,36 +35,62 @@
           <code>https://api-uat.kushkipagos.com/card/v1/charges</code>.
         </p>
 
-        <div class="cards">
-          <strong>Datos de prueba</strong>
+        <div class="cards tx-result" id="tx-result" hidden>
+          <strong id="tx-heading">Estado de la transacción</strong>
+          <p class="hint" id="tx-message"></p>
           <table>
-            <thead>
-              <tr>
-                <th>Escenario</th>
-                <th>Tarjeta</th>
-              </tr>
-            </thead>
             <tbody>
               <tr>
-                <td>Aprobada (000)</td>
-                <td><code>5451951574925480</code></td>
+                <th>Estado</th>
+                <td id="tx-status"></td>
               </tr>
               <tr>
-                <td>Declinada en token</td>
-                <td><code>4574441215190335</code></td>
+                <th>Código</th>
+                <td id="tx-code"></td>
               </tr>
               <tr>
-                <td>Declinada en cobro</td>
-                <td><code>4349003000047015</code></td>
+                <th>Ticket</th>
+                <td id="tx-ticket"></td>
+              </tr>
+              <tr>
+                <th>Referencia</th>
+                <td id="tx-reference"></td>
               </tr>
             </tbody>
           </table>
-          <p class="hint">CVV y código postal: cualquiera. Expiración: cualquier fecha futura.</p>
         </div>
       </section>
     </main>
 
     <p class="footer">Ambiente UAT · no procesa dinero real</p>
+
+    <script>
+      (function renderTransactionState() {
+        const params = new URLSearchParams(window.location.search);
+        const status = params.get("status");
+        if (!status) return;
+
+        const approved = status === "approved";
+        const box = document.getElementById("tx-result");
+        const statusCell = document.getElementById("tx-status");
+
+        document.getElementById("tx-heading").textContent = approved
+          ? "Transacción aprobada"
+          : "Transacción declinada";
+        document.getElementById("tx-message").textContent =
+          params.get("reason") ||
+          (approved ? "El cargo se completó en el ambiente UAT" : "La transacción no se cobró");
+        statusCell.textContent = approved ? "APPROVED" : "DECLINED";
+        statusCell.className = approved ? "status-ok" : "status-no";
+        document.getElementById("tx-code").textContent = params.get("code") || (approved ? "000" : "—");
+        document.getElementById("tx-ticket").textContent = params.get("ticket") || "—";
+        document.getElementById("tx-reference").textContent = params.get("reference") || "—";
+
+        box.hidden = false;
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+      })();
+    </script>
 
     <script src="/config.js"></script>
     <script>
