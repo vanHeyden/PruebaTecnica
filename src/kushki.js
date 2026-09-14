@@ -46,35 +46,55 @@ function buildChargePayload(body) {
   return payload;
 }
 
+const CARD_RESPONSE_CODES = {
+  "017": "Declinado por tarjeta no válida",
+  "019": "Declinado por tarjeta no compatible",
+  "021": "Declinado por fondos insuficientes",
+  "022": "Declinado por CVV incorrecto",
+  "023": "Declinado por tarjeta bloqueada",
+  "577": "Declinado por token inválido o ya utilizado",
+};
+
 function describeDeclineReason(data = {}) {
-  const code = String(data.code || data.processorError || "").toUpperCase();
+  const codes = [data.code, data.processorError, data.details?.responseCode]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+  const upperCodes = codes.map((value) => value.toUpperCase());
   const text = String(
-    data.message || data.details?.responseText || data.details?.message || ""
+    data.message ||
+      data.details?.responseText ||
+      data.details?.processorMessage ||
+      ""
   ).toLowerCase();
   const has = (...words) => words.some((word) => text.includes(word));
+  const hasCode = (...values) => values.some((value) => upperCodes.includes(value));
 
   if (has("token")) return "Declinado por token inválido o ya utilizado";
-  if (code === "582" || has("cvv", "código de seguridad", "security code")) {
+  if (hasCode("582", "022") || has("cvv", "código de seguridad", "security code")) {
     return "Declinado por CVV incorrecto";
   }
-  if (code === "551" || has("fondos", "insufficient")) {
+  if (hasCode("551", "021") || has("fondos", "insufficient")) {
     return "Declinado por fondos insuficientes";
   }
-  if (has("bloque", "blocked", "restringid", "restricted")) {
+  if (hasCode("023") || has("bloque", "blocked", "restringid", "restricted")) {
     return "Declinado por tarjeta bloqueada";
   }
-  if (has("no compatible", "not supported", "no soportad")) {
+  if (hasCode("019") || has("no compatible", "not supported", "no soportad")) {
     return "Declinado por tarjeta no compatible";
   }
   if (has("expir", "vencid")) return "Declinado por tarjeta expirada";
-  if (code === "K220" || has("monto")) {
+  if (hasCode("K220") || has("monto")) {
     return "Declinado por monto que no coincide con el token";
   }
-  if (code === "K004" || has("credencial", "credential")) {
+  if (hasCode("K004") || has("credencial", "credential")) {
     return "Declinado por credencial inválida";
   }
-  if (has("no válida", "no valida", "invalid card", "inválida", "invalida")) {
+  if (hasCode("017") || has("no válida", "no valida", "invalid card", "inválida", "invalida")) {
     return "Declinado por tarjeta no válida";
+  }
+
+  for (const code of upperCodes) {
+    if (CARD_RESPONSE_CODES[code]) return CARD_RESPONSE_CODES[code];
   }
   return "Transacción declinada";
 }

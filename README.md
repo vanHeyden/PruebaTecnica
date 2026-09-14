@@ -1,6 +1,6 @@
-# Integración de pagos únicos con Kajita — Kushki México (UAT)
+# Integración de pagos únicos con tarjeta — Kushki México (UAT)
 
-Aprenderás cómo este comercio recibe un pago único con tarjeta en el ambiente de pruebas de Kushki: el front-end captura los datos con **Kajita**, Kushki devuelve un **token de intención de pago** y el back-end confirma el cobro contra la API UAT.
+Aprenderás cómo este comercio recibe un pago único con tarjeta en el ambiente de pruebas de Kushki: el front-end captura los datos en un formulario propio y los **tokeniza directamente** contra Kushki (`/card/v1/tokens`, llave pública), Kushki devuelve un **token de intención de pago** y el back-end confirma el cobro contra la API UAT (`/card/v1/charges`, llave privada).
 
 Documentación de producto: [docs.kushki.com/mx](https://docs.kushki.com/mx)  
 Referencia de API México: [api-docs.kushkipagos.com/mexico/home](https://api-docs.kushkipagos.com/mexico/home)  
@@ -21,34 +21,35 @@ Esta prueba técnica implementa un **pago único con tarjeta en un paso** (token
 | Ambiente | UAT / pruebas (`inTestEnvironment: true`) |
 | Consola UAT | [uat-console.kushkipagos.com](https://uat-console.kushkipagos.com/auth) |
 | Base URL API | `https://api-uat.kushkipagos.com` |
-| Producto de captura | Kajita v2 (`kushki-checkout.js`) |
-| ID de Kajita (`kformId`) | `NjdqaKBZC` |
+| Producto de captura | Formulario propio + tokenización directa contra Kushki |
+| Endpoint de tokenización | `POST /card/v1/tokens` (llave pública, desde el navegador) |
 | ID de comercio | `20000000105136820000` |
 | `publicMerchantId` | credencial pública (llave pública) |
-| Endpoint de cobro | `POST /card/v1/charges` |
+| Endpoint de cobro | `POST /card/v1/charges` (llave privada, desde el servidor) |
 | Moneda | `MXN` |
 | Monto de demostración | `subtotalIva: 0`, `iva: 0`, `subtotalIva0: 1000` |
 
 ##### Importante
 
-El token generado por Kajita **no es una tokenización de suscripción**. Es un identificador de intención de pago de un solo uso. El `subscriptionId` aplica solo a cargos recurrentes. La llave privada (`Private-Merchant-Id`) vive exclusivamente en el servidor.
+El token generado en `/card/v1/tokens` **no es una tokenización de suscripción**. Es un identificador de intención de pago de un solo uso. El `subscriptionId` aplica solo a cargos recurrentes. La llave privada (`Private-Merchant-Id`) vive exclusivamente en el servidor.
 
 ---
 
 ## 2. Arquitectura
 
 ```
-Navegador                    Comercio                         Kushki UAT
-─────────                    ────────                         ──────────
-1. Abre /                    Express sirve Kajita
-2. Completa Kajita  ──────►  CDN kushki-checkout.js  ──────►  Tokeniza PCI
-3. POST /checkout   ◄──────  kushkiToken + método
-4. Back-end         ──────────────────────────────────────►  POST /card/v1/charges
-5. Estado en /      ◄──────────────────────────────────────  Aprobado o declinado
+Navegador                         Comercio                    Kushki UAT
+─────────                         ────────                    ──────────
+1. Abre /                         Express sirve el checkout
+2. Llena tarjeta y paga  ──────────────────────────────────► POST /card/v1/tokens (llave pública)
+3. Recibe kushkiToken    ◄──────────────────────────────────  token
+4. POST /checkout        ──────►  Back-end
+5. Back-end              ──────────────────────────────────► POST /card/v1/charges (llave privada)
+6. Estado en /           ◄──────  Aprobado o declinado ◄─────  ticket / referencia o motivo
 ```
 
-- **Front-end:** HTML estático + script oficial desde `https://cdn.kushkipagos.com/kushki-checkout.js`. No se empaqueta ni se hostea una copia, para cumplir PCI.
-- **Back-end:** Node.js 22+ y Express. Recibe el POST de Kajita, arma el cuerpo del cargo y llama a la API UAT con `Private-Merchant-Id`.
+- **Front-end:** HTML estático con formulario propio de tarjeta. El navegador tokeniza los datos **directamente** contra `POST /card/v1/tokens` de Kushki usando la llave pública; el PAN nunca pasa por este servidor (cumple PCI). Solo el `kushkiToken` se envía a `/checkout`.
+- **Back-end:** Node.js 22+ y Express. Recibe el `kushkiToken`, arma el cuerpo del cargo y llama a `POST /card/v1/charges` de la API UAT con `Private-Merchant-Id`.
 - **Secretos:** en local se usa `.env` (ignorado por git). En Railway hay valores UAT por defecto para que el proceso arranque sin Variables; el navegador solo recibe la llave pública vía `/config.js`.
 
 ---
@@ -59,23 +60,26 @@ El flujo que integrarás es el mismo que describe Kushki para pagos en un paso.
 
 ### 3.1 Configura el front-end
 
-1. Carga `kushki-checkout.js` desde el CDN.
-2. Reserva un `<form id="my-form" action="/checkout" method="post">`. El `action` es la URL a la que Kajita envía el token.
-3. Inicializa Kajita con el script de consola, en ambiente de pruebas:
+1. El checkout muestra un formulario propio de tarjeta (nombre, número, expiración y CVV).
+2. Al enviar, el navegador tokeniza los datos **directamente** contra Kushki con la llave pública, sin que el PAN toque este servidor:
 
 ```javascript
-var kushki = new KushkiCheckout({
-  kformId: "NjdqaKBZC",
-  form: "my-form",
-  publicMerchantId: "{publicCredentialId}", // llave pública
-  inTestEnvironment: true,
-  amount: {
-    subtotalIva: 0,
-    iva: 0,
-    subtotalIva0: 1000,
+const response = await fetch("https://api-uat.kushkipagos.com/card/v1/tokens", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Public-Merchant-Id": "{publicCredentialId}", // llave pública
   },
+  body: JSON.stringify({
+    card: { name, number, expiryMonth, expiryYear, cvv },
+    totalAmount: 1000,
+    currency: "MXN",
+  }),
 });
+const { token } = await response.json();
 ```
+
+3. Con el `token` recibido, el navegador hace `POST /checkout` (solo el token, no los datos de tarjeta) para que el back-end ejecute el cargo.
 
 ### 3.2 El cliente paga con una tarjeta de aprobación
 
@@ -91,7 +95,7 @@ Usa los [datos de prueba de México](https://docs.kushki.com/mx/getting-started/
 
 ### 3.3 Recepción del token
 
-Kajita hace `POST` a `/checkout` con un cuerpo similar a:
+El navegador hace `POST` a `/checkout` con un cuerpo similar a:
 
 ```json
 {
@@ -101,7 +105,7 @@ Kajita hace `POST` a `/checkout` con un cuerpo similar a:
 }
 ```
 
-Si el cliente elige meses, también llegan `kushkiDeferred` y `kushkiDeferredType`. Esos valores se reenvían en el cargo.
+Si la tokenización se declina (por ejemplo, tarjeta no válida), el navegador reenvía el código/motivo del error a `/checkout` para mostrar la declinación con un motivo legible.
 
 ### 3.4 Creación del cargo
 
@@ -141,14 +145,14 @@ Una declinación puede ocurrir **antes** del cargo (al pedir el token) o **duran
 
 ### 4.1 Declinada en solicitud de token (front-end)
 
-Kajita valida la tarjeta contra Kushki y **no envía** un token válido al comercio.
+`POST /card/v1/tokens` valida la tarjeta contra Kushki y **no devuelve** un token válido (responde con `code`/`processorError`).
 
 | Campo | Valor |
 | --- | --- |
 | Número de tarjeta | `4574441215190335` |
 | Respuesta esperada | `(017) Tarjeta no válida` |
 
-Qué ocurre en esta app: el usuario permanece en Kajita o no llega un `kushkiToken` usable. Si el POST llega vacío, `/checkout` redirige a `/` mostrando el motivo declinado al pie del checkout.
+Qué ocurre en esta app: la tokenización en el navegador falla, así que se reenvía el código/mensaje del error a `/checkout` y este redirige a `/` mostrando el motivo declinado (por ejemplo, «Declinado por tarjeta no válida») al pie del checkout.
 
 ### 4.2 Declinada en solicitud de cobro (back-end)
 
@@ -181,12 +185,13 @@ El checkout muestra el motivo y el código para trazabilidad, sin exponer la lla
 
 ## 5. Seguridad y buenas prácticas aplicadas
 
-- La llave privada nunca se renderiza en HTML ni en `/config.js`.
+- La llave privada nunca se renderiza en HTML ni en `/config.js`; solo se usa en el servidor para el cargo.
+- El PAN, CVV y expiración se tokenizan en el navegador contra Kushki y **no llegan a este servidor** (cumple PCI). El servidor solo maneja el `kushkiToken`.
 - `.env` está en `.gitignore`; el repositorio solo incluye `.env.example`.
-- El script de Kajita se carga desde el CDN oficial.
 - El monto del cargo replica el monto con el que se tokenizó (`subtotalIva0: 1000`) para evitar `K220`.
-- Headers mínimos: `Private-Merchant-Id` y `Content-Type`.
-- Ambiente fijo UAT (`api-uat.kushkipagos.com`). Producción usaría `api.kushkipagos.com`, credenciales productivas y Kajita publicada en modo producción.
+- Headers mínimos: `Public-Merchant-Id` para tokenizar y `Private-Merchant-Id` para el cargo.
+- El estado se muestra sin exponer datos sensibles (ni PAN, ni CVV, ni token, ni llave privada).
+- Ambiente fijo UAT (`api-uat.kushkipagos.com`). Producción usaría `api.kushkipagos.com` y credenciales productivas.
 
 ---
 
@@ -198,7 +203,7 @@ PruebaTecnica/
 ├── src/
 │   ├── config.js      # Lectura de variables de entorno
 │   ├── kushki.js      # Cliente HTTP del cargo UAT + motivo de declinación
-│   └── server.js      # Express: Kajita, cobro y estado en /
+│   └── server.js      # Express: config, cargo y estado en /
 ├── .env.example
 ├── package.json
 └── README.md
@@ -234,7 +239,7 @@ Requisitos: [Node.js 22 o superior](https://nodejs.org/).
 
 4. Abre el navegador en [http://localhost:3000](http://localhost:3000).
 
-5. Completa Kajita con una tarjeta de la tabla de datos de prueba y envía el pago. Serás redirigido a `/resultado`.
+5. Completa el formulario con una tarjeta de la tabla de datos de prueba y envía el pago. El estado de la transacción se muestra al pie del checkout.
 
 Modo recarga automática durante desarrollo: `npm run dev`.
 
@@ -242,7 +247,7 @@ Verificación rápida del servicio: [http://localhost:3000/health](http://localh
 
 ### Deploy en Railway
 
-Railway no incluye el archivo `.env` del repositorio. Esta app usa valores UAT por defecto (Kajita, comercio y credenciales de prueba) para que el servicio arranque en la web pública. `PORT` lo inyecta Railway y el proceso escucha en `0.0.0.0`. El build usa **Node 22** (`Dockerfile` con `node:22-alpine`) porque Node 18 ya no está disponible en Nixpacks.
+Railway no incluye el archivo `.env` del repositorio. Esta app usa valores UAT por defecto (comercio y credenciales de prueba) para que el servicio arranque en la web pública. `PORT` lo inyecta Railway y el proceso escucha en `0.0.0.0`. El build usa **Node 22** (`Dockerfile` con `node:22-alpine`) porque Node 18 ya no está disponible en Nixpacks.
 
 Tras el deploy, abre la URL pública del servicio (por ejemplo `https://<proyecto>.up.railway.app`) y usa las tarjetas de prueba. El health check queda en `/health`.
 
@@ -254,7 +259,6 @@ Si quieres sobrescribir credenciales sin cambiar código, define las mismas vari
 
 Según la [guía de paso a producción](https://docs.kushki.com/mx/getting-started/go-live):
 
-1. Publicar la Kajita en modo producción desde la consola.
-2. Sustituir llaves UAT por credenciales productivas.
-3. Cambiar `inTestEnvironment` a `false`.
-4. Apuntar el cobro a `https://api.kushkipagos.com/card/v1/charges`.
+1. Sustituir llaves UAT por credenciales productivas (pública y privada).
+2. Apuntar la tokenización a `https://api.kushkipagos.com/card/v1/tokens`.
+3. Apuntar el cobro a `https://api.kushkipagos.com/card/v1/charges`.
