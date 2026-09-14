@@ -113,12 +113,28 @@ body {
   border-bottom: 1px solid #e8eef5;
 }
 
+.tx-result {
+  border: 1px solid #dbe7f3;
+  border-radius: 0.5rem;
+  padding: 1rem 1.1rem;
+  background: #f8fbff;
+}
+
+.tx-result strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--navy);
+  font-size: 1rem;
+}
+
 .status-ok {
   color: var(--ok);
+  font-weight: 700;
 }
 
 .status-no {
   color: var(--danger);
+  font-weight: 700;
 }
 
 .result-title {

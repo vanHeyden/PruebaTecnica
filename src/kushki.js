@@ -46,6 +46,39 @@ function buildChargePayload(body) {
   return payload;
 }
 
+function describeDeclineReason(data = {}) {
+  const code = String(data.code || data.processorError || "").toUpperCase();
+  const text = String(
+    data.message || data.details?.responseText || data.details?.message || ""
+  ).toLowerCase();
+  const has = (...words) => words.some((word) => text.includes(word));
+
+  if (has("token")) return "Declinado por token inválido o ya utilizado";
+  if (code === "582" || has("cvv", "código de seguridad", "security code")) {
+    return "Declinado por CVV incorrecto";
+  }
+  if (code === "551" || has("fondos", "insufficient")) {
+    return "Declinado por fondos insuficientes";
+  }
+  if (has("bloque", "blocked", "restringid", "restricted")) {
+    return "Declinado por tarjeta bloqueada";
+  }
+  if (has("no compatible", "not supported", "no soportad")) {
+    return "Declinado por tarjeta no compatible";
+  }
+  if (has("expir", "vencid")) return "Declinado por tarjeta expirada";
+  if (code === "K220" || has("monto")) {
+    return "Declinado por monto que no coincide con el token";
+  }
+  if (code === "K004" || has("credencial", "credential")) {
+    return "Declinado por credencial inválida";
+  }
+  if (has("no válida", "no valida", "invalid card", "inválida", "invalida")) {
+    return "Declinado por tarjeta no válida";
+  }
+  return "Transacción declinada";
+}
+
 async function createCardCharge(formBody) {
   const payload = buildChargePayload(formBody);
   const response = await fetch(`${config.apiBaseUrl}/card/v1/charges`, {
@@ -66,4 +99,4 @@ async function createCardCharge(formBody) {
   };
 }
 
-module.exports = { createCardCharge, buildChargePayload };
+module.exports = { createCardCharge, buildChargePayload, describeDeclineReason };

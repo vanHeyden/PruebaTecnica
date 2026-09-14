@@ -1,7 +1,7 @@
 const path = require("path");
 const express = require("express");
 const { config } = require("./config");
-const { createCardCharge } = require("./kushki");
+const { createCardCharge, describeDeclineReason } = require("./kushki");
 
 const app = express();
 const publicDir = path.join(__dirname, "..", "public");
@@ -42,43 +42,33 @@ app.get("/", (_req, res) => {
 app.post("/checkout", async (req, res) => {
   try {
     const result = await createCardCharge(req.body);
-    const approved = result.approved;
-    const payload = {
-      approved,
-      httpStatus: result.httpStatus,
-      ticketNumber: result.data.ticketNumber || "",
-      transactionReference: result.data.transactionReference || "",
-      details: result.data.details || result.data,
-      code: result.data.code || result.data.processorError || "",
-      message:
-        result.data.message ||
-        result.data.details?.responseText ||
-        (approved ? "Transacción aprobada" : "Transacción declinada"),
-    };
+    const approved = Boolean(result.approved);
+    const reason = approved
+      ? "Transacción aprobada"
+      : describeDeclineReason(result.data);
 
     const query = new URLSearchParams({
       status: approved ? "approved" : "declined",
-      ticket: payload.ticketNumber,
-      reference: payload.transactionReference,
-      code: String(payload.code),
-      message: payload.message,
+      reason,
+      code: String(result.data.code || result.data.processorError || ""),
+      ticket: result.data.ticketNumber || "",
+      reference: result.data.transactionReference || "",
     });
 
-    return res.redirect(`/resultado?${query.toString()}`);
+    return res.redirect(`/?${query.toString()}`);
   } catch (error) {
     const query = new URLSearchParams({
       status: "declined",
+      reason:
+        error.status === 400
+          ? "No se recibió el token de Kushki"
+          : "No fue posible procesar el pago",
+      code: String(error.status || 500),
       ticket: "",
       reference: "",
-      code: String(error.status || 500),
-      message: error.message || "No fue posible procesar el pago",
     });
-    return res.redirect(`/resultado?${query.toString()}`);
+    return res.redirect(`/?${query.toString()}`);
   }
-});
-
-app.get("/resultado", (_req, res) => {
-  res.sendFile(path.join(publicDir, "resultado.html"));
 });
 
 app.use((err, _req, res, _next) => {
