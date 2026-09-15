@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Checkout | Kushki México UAT</title>
     <link rel="stylesheet" href="/assets/styles.css" />
+    <script src="https://cdn.kushkipagos.com/js/latest/kushki.min.js"></script>
+    <script src="https://cdn.kushkipagos.com/js/latest/card.min.js"></script>
   </head>
   <body>
     <header class="hero">
@@ -23,40 +25,34 @@
           <div class="amount">$1,000.00 MXN</div>
         </div>
 
-        <form id="pay-form" class="pay-form" autocomplete="off" novalidate>
-          <label class="field">
+        <form id="pay-form" class="pay-form">
+          <div class="field">
             <span>Nombre en la tarjeta</span>
-            <input id="card-name" type="text" placeholder="Como aparece en la tarjeta" required />
-          </label>
-          <label class="field">
-            <span>Número de tarjeta</span>
-            <input
-              id="card-number"
-              inputmode="numeric"
-              autocomplete="cc-number"
-              maxlength="23"
-              placeholder="1234 5678 9012 3456"
-              required
-            />
-          </label>
-          <div class="field-row">
-            <label class="field">
-              <span>Expiración (MM/AA)</span>
-              <input id="card-exp" inputmode="numeric" maxlength="5" placeholder="MM/AA" required />
-            </label>
-            <label class="field">
-              <span>CVV</span>
-              <input id="card-cvv" inputmode="numeric" maxlength="4" placeholder="•••" required />
-            </label>
+            <div id="id_cardholderName" class="hosted-field"></div>
           </div>
-          <button type="submit" id="pay-btn" class="btn btn-block">Pagar $1,000.00 MXN</button>
+          <div class="field">
+            <span>Número de tarjeta</span>
+            <div id="id_cardNumber" class="hosted-field"></div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <span>Expiración (MM/AA)</span>
+              <div id="id_expirationDate" class="hosted-field"></div>
+            </div>
+            <div class="field">
+              <span>CVV</span>
+              <div id="id_cvv" class="hosted-field"></div>
+            </div>
+          </div>
+          <button type="submit" id="pay-btn" class="btn btn-block" disabled>Pagar $1,000.00 MXN</button>
           <p class="hint pay-status" id="pay-status" hidden></p>
         </form>
 
         <p class="hint">
-          Los datos de tarjeta nunca llegan a este servidor: el navegador los tokeniza
-          directamente contra Kushki en
-          <code>/card/v1/tokens</code> (llave pública) y el back-end ejecuta el cargo en
+          Los datos de tarjeta se capturan en campos alojados (Hosted Fields) de Kushki:
+          cada campo sensible vive dentro de un iframe de Kushki, por lo que el número y el
+          CVV nunca tocan el DOM ni el JavaScript de este comercio. El navegador tokeniza con
+          Kushki.js v2 y el back-end ejecuta el cargo en
           <code>/card/v1/charges</code> (llave privada) con el token recibido.
         </p>
 
@@ -121,26 +117,20 @@
     <script>
       const checkout = window.__KUSHKI_CHECKOUT__ || {};
       const amount = checkout.amount || {};
-      const totalAmount =
-        (Number(amount.subtotalIva) || 0) +
-        (Number(amount.iva) || 0) +
-        (Number(amount.subtotalIva0) || 0) +
-        (Number(amount.ice) || 0);
-      const tokensUrl =
-        (checkout.apiBaseUrl || "https://api-uat.kushkipagos.com") + "/card/v1/tokens";
+      const cardAmount = {
+        iva: Number(amount.iva) || 0,
+        subtotalIva: Number(amount.subtotalIva) || 0,
+        subtotalIva0: Number(amount.subtotalIva0) || 0,
+      };
 
       const form = document.getElementById("pay-form");
       const payBtn = document.getElementById("pay-btn");
       const payStatus = document.getElementById("pay-status");
 
-      document.getElementById("card-number").addEventListener("input", (event) => {
-        const digits = event.target.value.replace(/\D/g, "").slice(0, 19);
-        event.target.value = digits.replace(/(.{4})/g, "$1 ").trim();
-      });
-      document.getElementById("card-exp").addEventListener("input", (event) => {
-        const digits = event.target.value.replace(/\D/g, "").slice(0, 4);
-        event.target.value = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
-      });
+      function setStatus(text) {
+        payStatus.hidden = !text;
+        payStatus.textContent = text || "";
+      }
 
       function submitToCheckout(fields) {
         const hidden = document.createElement("form");
@@ -158,52 +148,72 @@
         hidden.submit();
       }
 
+      let cardInstance = null;
+
+      // Kushki.js v2 (Hosted Fields): cada campo sensible se renderiza dentro de
+      // un iframe de Kushki, así el PAN y el CVV nunca tocan el DOM del comercio.
+      (async function initHostedFields() {
+        try {
+          const kushkiInstance = await window.init({
+            publicCredentialId: checkout.publicMerchantId,
+            inTest: checkout.inTestEnvironment !== false,
+          });
+
+          cardInstance = await window.initCardToken(kushkiInstance, {
+            amount: cardAmount,
+            currency: checkout.currency || "MXN",
+            fields: {
+              cardholderName: { selector: "id_cardholderName", placeholder: "Como aparece en la tarjeta" },
+              cardNumber: { selector: "id_cardNumber", placeholder: "1234 5678 9012 3456" },
+              cvv: { selector: "id_cvv", inputType: "password", placeholder: "•••" },
+              expirationDate: { selector: "id_expirationDate", placeholder: "MM/AA" },
+            },
+            styles: {
+              input: {
+                fontSize: "16px",
+                color: "#12324f",
+                fontFamily: "'IBM Plex Sans','Segoe UI',sans-serif",
+              },
+              focus: { border: "1px solid #0977e7" },
+            },
+          });
+
+          // Habilita el botón solo cuando todos los hosted fields son válidos.
+          cardInstance.onFieldValidity((event) => {
+            payBtn.disabled = !(event && event.isFormValid);
+          });
+        } catch (error) {
+          console.error("initCardToken error", error && error.code, error && error.message);
+          setStatus("No fue posible inicializar el formulario de pago. Recarga la página.");
+        }
+      })();
+
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
-
-        const name = document.getElementById("card-name").value.trim();
-        const number = document.getElementById("card-number").value.replace(/\s+/g, "");
-        const cvv = document.getElementById("card-cvv").value.trim();
-        const exp = document.getElementById("card-exp").value.replace(/\D/g, "");
-        const expiryMonth = exp.slice(0, 2);
-        const expiryYear = exp.slice(2, 4);
-
-        if (!name || number.length < 13 || expiryMonth.length !== 2 || expiryYear.length !== 2 || cvv.length < 3) {
-          payStatus.hidden = false;
-          payStatus.textContent = "Completa todos los campos de la tarjeta.";
-          return;
-        }
+        if (!cardInstance) return;
 
         payBtn.disabled = true;
-        payStatus.hidden = false;
-        payStatus.textContent = "Procesando pago…";
+        setStatus("Procesando pago…");
 
         try {
-          const response = await fetch(tokensUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Public-Merchant-Id": checkout.publicMerchantId,
-            },
-            body: JSON.stringify({
-              card: { name, number, expiryMonth, expiryYear, cvv },
-              totalAmount,
-              currency: checkout.currency || "MXN",
-            }),
-          });
-          const data = await response.json().catch(() => ({}));
-
-          if (data && data.token) {
-            submitToCheckout({ kushkiToken: data.token });
-          } else {
-            submitToCheckout({
-              tokenErrorCode: data.code || "",
-              tokenErrorMessage: data.message || "",
-              tokenProcessorError: data.processorError || "",
-            });
-          }
+          // requestToken valida los campos y ejecuta 3DS/OTP internamente.
+          const tokenResponse = await cardInstance.requestToken();
+          submitToCheckout({ kushkiToken: tokenResponse.token });
         } catch (error) {
-          submitToCheckout({ tokenErrorMessage: "No fue posible generar el token con Kushki" });
+          const code = (error && error.code) || "";
+          const message = (error && error.message) || "";
+
+          // E007 = error de validación del formulario: dejar corregir sin declinar.
+          if (code === "E007") {
+            setStatus(message || "Revisa los datos de la tarjeta.");
+            payBtn.disabled = false;
+            return;
+          }
+
+          submitToCheckout({
+            tokenErrorCode: code,
+            tokenErrorMessage: message || "No fue posible generar el token con Kushki",
+          });
         }
       });
     </script>
