@@ -48,7 +48,7 @@ Navegador                         Comercio                    Kushki UAT
 6. Estado en /           ◄──────  Aprobado o declinado ◄─────  ticket / referencia o motivo
 ```
 
-- **Front-end:** HTML estático con formulario propio de tarjeta. El navegador tokeniza los datos **directamente** contra `POST /card/v1/tokens` de Kushki usando la llave pública; el PAN nunca pasa por este servidor (cumple PCI). Solo el `kushkiToken` se envía a `/checkout`.
+- **Front-end:** HTML estático con formulario propio de tarjeta. El navegador tokeniza con **Kushki.js** (`kushki.min.js`), que internamente llama a `POST /card/v1/tokens` con la llave pública y ejecuta validaciones de formato y 3DS/OTP/Sift; el PAN nunca pasa por este servidor (cumple PCI). Solo el `kushkiToken` se envía a `/checkout`.
 - **Back-end:** Node.js 22+ y Express. Recibe el `kushkiToken`, arma el cuerpo del cargo y llama a `POST /card/v1/charges` de la API UAT con `Private-Merchant-Id`.
 - **Secretos:** en local se usa `.env` (ignorado por git). En Railway hay valores UAT por defecto para que el proceso arranque sin Variables; el navegador solo recibe la llave pública vía `/config.js`.
 
@@ -60,26 +60,40 @@ El flujo que integrarás es el mismo que describe Kushki para pagos en un paso.
 
 ### 3.1 Configura el front-end
 
-1. El checkout muestra un formulario propio de tarjeta (nombre, número, expiración y CVV).
-2. Al enviar, el navegador tokeniza los datos **directamente** contra Kushki con la llave pública, sin que el PAN toque este servidor:
+1. El checkout muestra un formulario propio de tarjeta (nombre, número, expiración y CVV de tipo `password`).
+2. Se carga la librería Kushki.js y se inicializa con la llave pública en ambiente de pruebas:
 
-```javascript
-const response = await fetch("https://api-uat.kushkipagos.com/card/v1/tokens", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Public-Merchant-Id": "{publicCredentialId}", // llave pública
-  },
-  body: JSON.stringify({
-    card: { name, number, expiryMonth, expiryYear, cvv },
-    totalAmount: 1000,
-    currency: "MXN",
-  }),
-});
-const { token } = await response.json();
+```html
+<script src="https://cdn.kushkipagos.com/kushki.min.js"></script>
 ```
 
-3. Con el `token` recibido, el navegador hace `POST /checkout` (solo el token, no los datos de tarjeta) para que el back-end ejecute el cargo.
+```javascript
+const kushki = new Kushki({
+  merchantId: "{publicCredentialId}", // llave pública
+  inTestEnvironment: true,
+});
+```
+
+3. Al enviar, se llama a `requestToken` con los datos del formulario. Kushki.js hace internamente el `POST /card/v1/tokens` (y valida formato + 3DS/OTP/Sift) sin que el PAN toque este servidor:
+
+```javascript
+kushki.requestToken(
+  {
+    amount: "1000",
+    currency: "MXN",
+    card: { name, number, cvc: cvv, expiryMonth, expiryYear },
+  },
+  (response) => {
+    if (!response.code) {
+      // response.token -> se envía a /checkout
+    } else {
+      // response.code / response.message -> motivo declinado
+    }
+  }
+);
+```
+
+4. Con el `token` recibido, el navegador hace `POST /checkout` (solo el token, no los datos de tarjeta) para que el back-end ejecute el cargo.
 
 ### 3.2 El cliente paga con una tarjeta de aprobación
 
@@ -186,7 +200,8 @@ El checkout muestra el motivo y el código para trazabilidad, sin exponer la lla
 ## 5. Seguridad y buenas prácticas aplicadas
 
 - La llave privada nunca se renderiza en HTML ni en `/config.js`; solo se usa en el servidor para el cargo.
-- El PAN, CVV y expiración se tokenizan en el navegador contra Kushki y **no llegan a este servidor** (cumple PCI). El servidor solo maneja el `kushkiToken`.
+- El PAN, CVV y expiración se tokenizan en el navegador con Kushki.js y **no llegan a este servidor** (cumple PCI). El servidor solo maneja el `kushkiToken`.
+- El campo CVV es de tipo `password` (enmascarado), conforme a los requisitos de certificación de Kushki.
 - `.env` está en `.gitignore`; el repositorio solo incluye `.env.example`.
 - El monto del cargo replica el monto con el que se tokenizó (`subtotalIva0: 1000`) para evitar `K220`.
 - Headers mínimos: `Public-Merchant-Id` para tokenizar y `Private-Merchant-Id` para el cargo.

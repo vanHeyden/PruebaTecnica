@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Checkout | Kushki México UAT</title>
     <link rel="stylesheet" href="/assets/styles.css" />
+    <script src="https://cdn.kushkipagos.com/kushki.min.js"></script>
   </head>
   <body>
     <header class="hero">
@@ -46,7 +47,7 @@
             </label>
             <label class="field">
               <span>CVV</span>
-              <input id="card-cvv" inputmode="numeric" maxlength="4" placeholder="•••" required />
+              <input id="card-cvv" type="password" inputmode="numeric" autocomplete="cc-csc" maxlength="4" placeholder="•••" required />
             </label>
           </div>
           <button type="submit" id="pay-btn" class="btn btn-block">Pagar $1,000.00 MXN</button>
@@ -126,8 +127,10 @@
         (Number(amount.iva) || 0) +
         (Number(amount.subtotalIva0) || 0) +
         (Number(amount.ice) || 0);
-      const tokensUrl =
-        (checkout.apiBaseUrl || "https://api-uat.kushkipagos.com") + "/card/v1/tokens";
+      const kushki = new Kushki({
+        merchantId: checkout.publicMerchantId,
+        inTestEnvironment: checkout.inTestEnvironment !== false,
+      });
 
       const form = document.getElementById("pay-form");
       const payBtn = document.getElementById("pay-btn");
@@ -158,7 +161,7 @@
         hidden.submit();
       }
 
-      form.addEventListener("submit", async (event) => {
+      form.addEventListener("submit", (event) => {
         event.preventDefault();
 
         const name = document.getElementById("card-name").value.trim();
@@ -178,33 +181,26 @@
         payStatus.hidden = false;
         payStatus.textContent = "Procesando pago…";
 
-        try {
-          const response = await fetch(tokensUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Public-Merchant-Id": checkout.publicMerchantId,
-            },
-            body: JSON.stringify({
-              card: { name, number, expiryMonth, expiryYear, cvv },
-              totalAmount,
-              currency: checkout.currency || "MXN",
-            }),
-          });
-          const data = await response.json().catch(() => ({}));
-
-          if (data && data.token) {
-            submitToCheckout({ kushkiToken: data.token });
-          } else {
-            submitToCheckout({
-              tokenErrorCode: data.code || "",
-              tokenErrorMessage: data.message || "",
-              tokenProcessorError: data.processorError || "",
-            });
+        // Kushki.js hace internamente el POST /card/v1/tokens y ejecuta
+        // las validaciones de formato, 3DS/OTP/Sift antes de tokenizar.
+        kushki.requestToken(
+          {
+            amount: String(totalAmount),
+            currency: checkout.currency || "MXN",
+            card: { name, number, cvc: cvv, expiryMonth, expiryYear },
+          },
+          (response) => {
+            if (response && response.token && !response.code) {
+              submitToCheckout({ kushkiToken: response.token });
+            } else {
+              submitToCheckout({
+                tokenErrorCode: (response && response.code) || "",
+                tokenErrorMessage:
+                  (response && response.message) || "No fue posible generar el token con Kushki",
+              });
+            }
           }
-        } catch (error) {
-          submitToCheckout({ tokenErrorMessage: "No fue posible generar el token con Kushki" });
-        }
+        );
       });
     </script>
   </body>
