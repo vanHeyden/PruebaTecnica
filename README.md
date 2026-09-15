@@ -1,6 +1,6 @@
 # Integración de pagos únicos con tarjeta — Kushki México (UAT)
 
-Aprenderás cómo este comercio recibe un pago único con tarjeta en el ambiente de pruebas de Kushki: el front-end captura los datos en un formulario propio y los **tokeniza directamente** contra Kushki (`/card/v1/tokens`, llave pública), Kushki devuelve un **token de intención de pago** y el back-end confirma el cobro contra la API UAT (`/card/v1/charges`, llave privada).
+Aprenderás cómo este comercio recibe un pago único con tarjeta en el ambiente de pruebas de Kushki: el front-end captura los datos con **Kushki.js v2 (Hosted Fields)** —cada campo sensible vive dentro de un iframe de Kushki—, la librería tokeniza contra Kushki (`/card/v1/tokens`, llave pública), devuelve un **token de intención de pago** y el back-end confirma el cobro contra la API UAT (`/card/v1/charges`, llave privada).
 
 Documentación de producto: [docs.kushki.com/mx](https://docs.kushki.com/mx)  
 Referencia de API México: [api-docs.kushkipagos.com/mexico/home](https://api-docs.kushkipagos.com/mexico/home)  
@@ -21,8 +21,8 @@ Esta prueba técnica implementa un **pago único con tarjeta en un paso** (token
 | Ambiente | UAT / pruebas (`inTestEnvironment: true`) |
 | Consola UAT | [uat-console.kushkipagos.com](https://uat-console.kushkipagos.com/auth) |
 | Base URL API | `https://api-uat.kushkipagos.com` |
-| Producto de captura | Formulario propio + tokenización directa contra Kushki |
-| Endpoint de tokenización | `POST /card/v1/tokens` (llave pública, desde el navegador) |
+| Producto de captura | Kushki.js v2 (Hosted Fields, iframes de Kushki) |
+| Endpoint de tokenización | `POST /card/v1/tokens` (lo hace Kushki.js con la llave pública) |
 | ID de comercio | `20000000105136820000` |
 | `publicMerchantId` | credencial pública (llave pública) |
 | Endpoint de cobro | `POST /card/v1/charges` (llave privada, desde el servidor) |
@@ -48,7 +48,7 @@ Navegador                         Comercio                    Kushki UAT
 6. Estado en /           ◄──────  Aprobado o declinado ◄─────  ticket / referencia o motivo
 ```
 
-- **Front-end:** HTML estático con formulario propio de tarjeta. El navegador tokeniza con **Kushki.js** (`kushki.min.js`), que internamente llama a `POST /card/v1/tokens` con la llave pública y ejecuta validaciones de formato y 3DS/OTP/Sift; el PAN nunca pasa por este servidor (cumple PCI). Solo el `kushkiToken` se envía a `/checkout`.
+- **Front-end:** HTML estático con **Kushki.js v2 (Hosted Fields)**. Cada campo (nombre, número, expiración y CVV) se renderiza dentro de un iframe de Kushki, por lo que el PAN y el CVV **nunca tocan el DOM ni el JavaScript** del comercio (se reduce el alcance PCI). La librería llama internamente a `POST /card/v1/tokens` con la llave pública y ejecuta 3DS/OTP/Sift; solo el `kushkiToken` se envía a `/checkout`.
 - **Back-end:** Node.js 22+ y Express. Recibe el `kushkiToken`, arma el cuerpo del cargo y llama a `POST /card/v1/charges` de la API UAT con `Private-Merchant-Id`.
 - **Secretos:** en local se usa `.env` (ignorado por git). En Railway hay valores UAT por defecto para que el proceso arranque sin Variables; el navegador solo recibe la llave pública vía `/config.js`.
 
@@ -58,42 +58,63 @@ Navegador                         Comercio                    Kushki UAT
 
 El flujo que integrarás es el mismo que describe Kushki para pagos en un paso.
 
-### 3.1 Configura el front-end
+### 3.1 Configura el front-end (Kushki.js v2 · Hosted Fields)
 
-1. El checkout muestra un formulario propio de tarjeta (nombre, número, expiración y CVV de tipo `password`).
-2. Se carga la librería Kushki.js y se inicializa con la llave pública en ambiente de pruebas:
+1. Se cargan las librerías de Kushki.js v2 desde el CDN:
 
 ```html
-<script src="https://cdn.kushkipagos.com/kushki.min.js"></script>
+<script src="https://cdn.kushkipagos.com/js/latest/kushki.min.js"></script>
+<script src="https://cdn.kushkipagos.com/js/latest/card.min.js"></script>
 ```
 
+2. El formulario define un contenedor `<div>` por campo; Kushki inyecta un iframe seguro en cada uno:
+
+```html
+<form id="pay-form">
+  <div id="id_cardholderName"></div>
+  <div id="id_cardNumber"></div>
+  <div id="id_expirationDate"></div>
+  <div id="id_cvv"></div>
+</form>
+```
+
+3. Se inicializa la instancia y los Hosted Fields con el monto, la moneda y los selectores:
+
 ```javascript
-const kushki = new Kushki({
-  merchantId: "{publicCredentialId}", // llave pública
-  inTestEnvironment: true,
+const kushkiInstance = await init({
+  publicCredentialId: "{publicCredentialId}", // llave pública
+  inTest: true,
+});
+
+const cardInstance = await initCardToken(kushkiInstance, {
+  amount: { iva: 0, subtotalIva: 0, subtotalIva0: 1000 },
+  currency: "MXN",
+  fields: {
+    cardholderName: { selector: "id_cardholderName" },
+    cardNumber: { selector: "id_cardNumber" },
+    cvv: { selector: "id_cvv", inputType: "password" },
+    expirationDate: { selector: "id_expirationDate" },
+  },
+});
+
+// Habilita el botón de pago solo cuando el formulario es válido.
+cardInstance.onFieldValidity((event) => {
+  payBtn.disabled = !event.isFormValid;
 });
 ```
 
-3. Al enviar, se llama a `requestToken` con los datos del formulario. Kushki.js hace internamente el `POST /card/v1/tokens` (y valida formato + 3DS/OTP/Sift) sin que el PAN toque este servidor:
+4. Al enviar, se llama a `requestToken()` sobre la instancia de tarjeta. Kushki.js valida los campos y ejecuta 3DS/OTP/Sift internamente; el PAN y el CVV nunca salen de los iframes de Kushki:
 
 ```javascript
-kushki.requestToken(
-  {
-    amount: "1000",
-    currency: "MXN",
-    card: { name, number, cvc: cvv, expiryMonth, expiryYear },
-  },
-  (response) => {
-    if (!response.code) {
-      // response.token -> se envía a /checkout
-    } else {
-      // response.code / response.message -> motivo declinado
-    }
-  }
-);
+try {
+  const { token } = await cardInstance.requestToken();
+  // token -> se envía a /checkout
+} catch (error) {
+  // error.code / error.message -> motivo declinado o validación
+}
 ```
 
-4. Con el `token` recibido, el navegador hace `POST /checkout` (solo el token, no los datos de tarjeta) para que el back-end ejecute el cargo.
+5. Con el `token` recibido, el navegador hace `POST /checkout` (solo el token, no los datos de tarjeta) para que el back-end ejecute el cargo.
 
 ### 3.2 El cliente paga con una tarjeta de aprobación
 
@@ -200,8 +221,8 @@ El checkout muestra el motivo y el código para trazabilidad, sin exponer la lla
 ## 5. Seguridad y buenas prácticas aplicadas
 
 - La llave privada nunca se renderiza en HTML ni en `/config.js`; solo se usa en el servidor para el cargo.
-- El PAN, CVV y expiración se tokenizan en el navegador con Kushki.js y **no llegan a este servidor** (cumple PCI). El servidor solo maneja el `kushkiToken`.
-- El campo CVV es de tipo `password` (enmascarado), conforme a los requisitos de certificación de Kushki.
+- El PAN, CVV y expiración se capturan en **Hosted Fields (iframes de Kushki)** y se tokenizan con Kushki.js v2; **no tocan el DOM ni el JavaScript** de este comercio ni llegan a este servidor (reduce el alcance PCI). El servidor solo maneja el `kushkiToken`.
+- El campo CVV se renderiza como `inputType: "password"` dentro de su iframe (enmascarado), conforme a los requisitos de certificación de Kushki.
 - `.env` está en `.gitignore`; el repositorio solo incluye `.env.example`.
 - El monto del cargo replica el monto con el que se tokenizó (`subtotalIva0: 1000`) para evitar `K220`.
 - Headers mínimos: `Public-Merchant-Id` para tokenizar y `Private-Merchant-Id` para el cargo.

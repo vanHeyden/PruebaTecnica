@@ -178,7 +178,10 @@
             },
           });
 
-          payBtn.disabled = false;
+          // Habilita el botón solo cuando todos los hosted fields son válidos.
+          cardInstance.onFieldValidity((event) => {
+            payBtn.disabled = !(event && event.isFormValid);
+          });
         } catch (error) {
           console.error("initCardToken error", error && error.code, error && error.message);
           setStatus("No fue posible inicializar el formulario de pago. Recarga la página.");
