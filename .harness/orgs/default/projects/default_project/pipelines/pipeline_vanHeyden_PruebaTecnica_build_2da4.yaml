@@ -1,0 +1,44 @@
+pipeline:
+  id: pipeline_vanHeyden_PruebaTecnica_build_2da4
+  name: pipeline_vanHeyden_PruebaTecnica_build_2da4
+  stages:
+    - name: Build
+      id: build
+      runtime: cloud
+      platform:
+        os: linux
+        arch: amd64
+      clone:
+        enabled: true
+      cache:
+        enabled: true
+      steps:
+        - name: Setup Node and Install Dependencies
+          id: setup_and_install
+          run:
+            shell: bash
+            script: |-
+              # Verify Node.js version from .nvmrc
+              REQUIRED_VERSION=$(cat .nvmrc | tr -d '[:space:]')
+              echo "Required Node.js version: $REQUIRED_VERSION"
+
+              # Install Node.js using nvm
+              export NVM_DIR="$HOME/.nvm"
+              if [ ! -d "$NVM_DIR" ]; then
+                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+              fi
+              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+              nvm install "$REQUIRED_VERSION"
+              nvm use "$REQUIRED_VERSION"
+
+              # Verify installed version
+              echo "Node.js version: $(node -v)"
+              echo "npm version: $(npm -v)"
+
+              # Install dependencies using npm ci for deterministic builds
+              npm ci
+
+              echo "Dependencies installed successfully"
+  tags:
+    onboarding: "true"
